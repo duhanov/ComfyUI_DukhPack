@@ -39,7 +39,12 @@ class HexPaletteTemplateNode:
                     "default": "Palette: {colors}",
                     "multiline": True
                 }),
-            }
+            },
+            "optional": {
+                "str1": ("STRING", {"forceInput": True}),
+                "str2": ("STRING", {"forceInput": True}),
+                "str3": ("STRING", {"forceInput": True}),
+            }            
         }
 
     RETURN_TYPES = ("STRING", "STRING")
@@ -47,7 +52,18 @@ class HexPaletteTemplateNode:
     FUNCTION = "build_text"
     CATEGORY = "DukhPack"
 
-    def build_text(self, color_1, color_2, color_3, color_4, color_5, template):
+    def build_text(
+        self,
+        color_1,
+        color_2,
+        color_3,
+        color_4,
+        color_5,
+        template,
+        str1=None,
+        str2=None,
+        str3=None,
+    ):
         raw_colors = [
             normalize_hex(color_1),
             normalize_hex(color_2),
@@ -61,4 +77,9 @@ class HexPaletteTemplateNode:
         colors_json = json.dumps(colors, ensure_ascii=False)
         result_text = template.replace("{colors}", colors_json)
 
+        result_text = template.replace("{colors}", colors_json)
+        result_text = result_text.replace("{str1}", "" if str1 is None else str(str1))
+        result_text = result_text.replace("{str2}", "" if str2 is None else str(str2))
+        result_text = result_text.replace("{str3}", "" if str3 is None else str(str3))
+    
         return (result_text, colors_json)
