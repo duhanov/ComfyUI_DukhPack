@@ -29,10 +29,6 @@ function normalizeHex(value) {
 function refreshNode(node) {
     requestAnimationFrame(() => {
         try {
-            const size = node.computeSize ? node.computeSize() : node.size;
-            if (size && node.setSize) {
-                node.setSize([Math.max(size[0], 420), size[1]]);
-            }
             app.graph.setDirtyCanvas(true, true);
         } catch (err) {
             console.error("refreshNode failed", err);
@@ -46,6 +42,99 @@ function moveWidgetToIndex(node, widget, targetIndex) {
 
     node.widgets.splice(currentIndex, 1);
     node.widgets.splice(targetIndex, 0, widget);
+}
+
+function removeWidgetByRef(node, widget) {
+    const i = node.widgets.indexOf(widget);
+    if (i !== -1) node.widgets.splice(i, 1);
+}
+
+function removeDuplicateTemplateDomWidgets(node) {
+    const toRemove = (node.widgets || []).filter(
+        (w) => w && (w.name === "template_dom" || w.name === "template_dom_widget")
+    );
+
+    for (const w of toRemove) {
+        removeWidgetByRef(node, w);
+    }
+}
+
+
+function replaceTemplateWidget(node) {
+    if (node.__dukhTemplateDone) return;
+    node.__dukhTemplateDone = true;
+
+    removeDuplicateTemplateDomWidgets(node);
+
+    const original = node.widgets?.find(
+        (w) => w.name === "template" && !w.element
+    );
+    if (!original || original.__dukhReplaced) return;
+
+    const index = node.widgets.indexOf(original);
+    original.__dukhReplaced = true;
+
+    // Жестко прячем стандартный canvas widget
+    original.type = "hidden";
+    original.hidden = true;
+    original.disabled = true;
+    original.computeSize = () => [0, 0];
+    original.serializeValue = () => original.value;
+    original.draw = () => {};
+
+    const wrap = document.createElement("div");
+    wrap.style.width = "100%";
+    wrap.style.margin = "0";
+    wrap.style.padding = "0";
+    wrap.style.boxSizing = "border-box";
+
+    const textarea = document.createElement("textarea");
+    textarea.style.display = "block";
+    textarea.style.width = "100%";
+    textarea.style.height = "320px";
+    textarea.style.minHeight = "320px";
+//    textarea.style.maxHeight = "120px";
+    textarea.style.resize = "none";
+    textarea.style.padding = "8px";
+    textarea.style.margin = "0";
+    textarea.style.boxSizing = "border-box";
+    textarea.style.border = "1px solid #777";
+    textarea.style.borderRadius = "4px";
+    textarea.style.background = "transparent";
+    textarea.style.color = "inherit";
+    textarea.style.overflow = "auto";
+
+    const sync = () => {
+        original.value = textarea.value;
+        app.graph.setDirtyCanvas(true, true);
+    };
+
+    textarea.addEventListener("input", sync);
+    textarea.value = original.value || "Palette: {colors}";
+
+    wrap.appendChild(textarea);
+
+    const domWidget = node.addDOMWidget("template_dom_widget", "custom", wrap, {
+        getValue: () => textarea.value,
+        setValue: (v) => {
+            textarea.value = v ?? "";
+            original.value = textarea.value;
+        },
+        serialize: true,
+    });
+
+    // Важно: НЕ называем его "template"
+    domWidget.name = "template_dom";
+    domWidget.serializeValue = () => textarea.value;
+    domWidget.computeSize = (width) => [width || 360, 130];
+
+    removeWidgetByRef(node, original);
+    moveWidgetToIndex(node, domWidget, index);
+
+    node.__dukhTemplateTextarea = textarea;
+    node.__dukhTemplateWidget = domWidget;
+
+    updateTemplateLayout(node);
 }
 
 function replaceColorWidget(node, widgetName) {
@@ -153,13 +242,41 @@ function replaceColorWidget(node, widgetName) {
     moveWidgetToIndex(node, domWidget, originalIndex);
 }
 
+function updateTemplateLayout(node) {
+    const textarea = node.__dukhTemplateTextarea;
+    const domWidget = node.__dukhTemplateWidget;
+    if (!textarea || !domWidget) return;
+
+    const nodeWidth = node.size?.[0] || 420;
+    const nodeHeight = node.size?.[1] || 420;
+
+    const reservedTop = 300;   // было 230
+    const minHeight = 120;
+    const textareaHeight = Math.max(minHeight, nodeHeight - reservedTop);
+
+    textarea.style.width = "100%";
+    textarea.style.height = `${textareaHeight}px`;
+    textarea.style.minHeight = `${textareaHeight}px`;
+    textarea.style.maxHeight = `${textareaHeight}px`;
+    textarea.style.resize = "none";
+    textarea.style.boxSizing = "border-box";
+
+    domWidget.computeSize = (width) => [
+        Math.max(260, (width || nodeWidth) - 40),
+        textareaHeight + 10
+    ];
+}
+
 app.registerExtension({
     name: "DukhPack.HexPaletteTemplate",
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== "HexPaletteTemplateNode") return;
 
         const onNodeCreated = nodeType.prototype.onNodeCreated;
+        const onResize = nodeType.prototype.onResize;
+
         nodeType.prototype.onNodeCreated = function () {
+            this.setSize([520, 700]);
             const result = onNodeCreated ? onNodeCreated.apply(this, arguments) : undefined;
 
             setTimeout(() => {
@@ -168,9 +285,18 @@ app.registerExtension({
                 replaceColorWidget(this, "color_3");
                 replaceColorWidget(this, "color_4");
                 replaceColorWidget(this, "color_5");
+                replaceTemplateWidget(this);
+
+                updateTemplateLayout(this);
                 refreshNode(this);
             }, 50);
 
+            return result;
+        };
+
+        nodeType.prototype.onResize = function () {
+            const result = onResize ? onResize.apply(this, arguments) : undefined;
+            updateTemplateLayout(this);
             return result;
         };
     },
