@@ -44,6 +44,8 @@ class HexPaletteTemplateNode:
                 "str1": ("STRING", {"forceInput": True}),
                 "str2": ("STRING", {"forceInput": True}),
                 "str3": ("STRING", {"forceInput": True}),
+                "str4": ("STRING", {"forceInput": True}),
+                "str5": ("STRING", {"forceInput": True}),
             }            
         }
 
@@ -63,6 +65,8 @@ class HexPaletteTemplateNode:
         str1=None,
         str2=None,
         str3=None,
+        str4=None,
+        str5=None,
     ):
         raw_colors = [
             normalize_hex(color_1),
@@ -81,5 +85,7 @@ class HexPaletteTemplateNode:
         result_text = result_text.replace("{str1}", "" if str1 is None else str(str1))
         result_text = result_text.replace("{str2}", "" if str2 is None else str(str2))
         result_text = result_text.replace("{str3}", "" if str3 is None else str(str3))
+        result_text = result_text.replace("{str4}", "" if str4 is None else str(str4))
+        result_text = result_text.replace("{str5}", "" if str5 is None else str(str5))
     
         return (result_text, colors_json)
