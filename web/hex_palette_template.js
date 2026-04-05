@@ -59,7 +59,6 @@ function removeDuplicateTemplateDomWidgets(node) {
     }
 }
 
-
 function replaceTemplateWidget(node) {
     if (node.__dukhTemplateDone) return;
     node.__dukhTemplateDone = true;
@@ -74,7 +73,6 @@ function replaceTemplateWidget(node) {
     const index = node.widgets.indexOf(original);
     original.__dukhReplaced = true;
 
-    // Жестко прячем стандартный canvas widget
     original.type = "hidden";
     original.hidden = true;
     original.disabled = true;
@@ -93,7 +91,7 @@ function replaceTemplateWidget(node) {
     textarea.style.width = "100%";
     textarea.style.height = "320px";
     textarea.style.minHeight = "320px";
-//    textarea.style.maxHeight = "120px";
+    textarea.style.maxHeight = "320px";
     textarea.style.resize = "none";
     textarea.style.padding = "8px";
     textarea.style.margin = "0";
@@ -123,10 +121,9 @@ function replaceTemplateWidget(node) {
         serialize: true,
     });
 
-    // Важно: НЕ называем его "template"
     domWidget.name = "template_dom";
     domWidget.serializeValue = () => textarea.value;
-    domWidget.computeSize = (width) => [width || 360, 130];
+    domWidget.computeSize = (width) => [width || 360, 330];
 
     removeWidgetByRef(node, original);
     moveWidgetToIndex(node, domWidget, index);
@@ -138,7 +135,11 @@ function replaceTemplateWidget(node) {
 }
 
 function replaceColorWidget(node, widgetName) {
-    const original = node.widgets?.find((w) => w.name === widgetName);
+    node.__dukhColorDone = node.__dukhColorDone || {};
+    if (node.__dukhColorDone[widgetName]) return;
+    node.__dukhColorDone[widgetName] = true;
+
+    const original = node.widgets?.find((w) => w.name === widgetName && !w.element);
     if (!original || original.__dukhReplaced) return;
 
     const originalIndex = node.widgets.indexOf(original);
@@ -196,10 +197,10 @@ function replaceColorWidget(node, widgetName) {
 
     const sync = (raw) => {
         const hex = normalizeHex(raw);
-    
+
         original.value = hex;
         input.value = hex;
-    
+
         if (hex) {
             preview.style.background = hex;
             picker.value = hex;
@@ -207,7 +208,7 @@ function replaceColorWidget(node, widgetName) {
             preview.style.background = "transparent";
             picker.value = EMPTY_PICKER_FALLBACK;
         }
-    
+
         app.graph.setDirtyCanvas(true, true);
     };
 
@@ -232,13 +233,11 @@ function replaceColorWidget(node, widgetName) {
     domWidget.serializeValue = () => original.value;
     domWidget.computeSize = () => [node.size?.[0] ? node.size[0] - 40 : 360, 30];
 
-    // Удаляем старый widget из layout
     const oldIndex = node.widgets.indexOf(original);
     if (oldIndex !== -1) {
         node.widgets.splice(oldIndex, 1);
     }
 
-    // Ставим новый DOM widget на место старого
     moveWidgetToIndex(node, domWidget, originalIndex);
 }
 
@@ -247,11 +246,11 @@ function updateTemplateLayout(node) {
     const domWidget = node.__dukhTemplateWidget;
     if (!textarea || !domWidget) return;
 
-    const nodeWidth = node.size?.[0] || 420;
-    const nodeHeight = node.size?.[1] || 420;
+    const nodeWidth = node.size?.[0] || 520;
+    const nodeHeight = node.size?.[1] || 700;
 
-    const reservedTop = 300;   // было 230
-    const minHeight = 120;
+    const reservedTop = 300;
+    const minHeight = 320;
     const textareaHeight = Math.max(minHeight, nodeHeight - reservedTop);
 
     textarea.style.width = "100%";
@@ -267,28 +266,60 @@ function updateTemplateLayout(node) {
     ];
 }
 
+function enhanceLegacyNode(node) {
+    if (node.__dukhEnhancedLegacy) return;
+    node.__dukhEnhancedLegacy = true;
+
+    node.setSize([520, 700]);
+
+    replaceColorWidget(node, "color_1");
+    replaceColorWidget(node, "color_2");
+    replaceColorWidget(node, "color_3");
+    replaceColorWidget(node, "color_4");
+    replaceColorWidget(node, "color_5");
+    replaceTemplateWidget(node);
+
+    updateTemplateLayout(node);
+    refreshNode(node);
+}
+
+function enhanceColorsBuilderNode(node) {
+    if (node.__dukhEnhancedBuilder) return;
+    node.__dukhEnhancedBuilder = true;
+
+    node.setSize([420, 360]);
+
+    replaceColorWidget(node, "color_1");
+    replaceColorWidget(node, "color_2");
+    replaceColorWidget(node, "color_3");
+    replaceColorWidget(node, "color_4");
+    replaceColorWidget(node, "color_5");
+
+    refreshNode(node);
+}
+
 app.registerExtension({
     name: "DukhPack.HexPaletteTemplate",
     async beforeRegisterNodeDef(nodeType, nodeData) {
-        if (nodeData.name !== "HexPaletteTemplateNode") return;
+        if (
+            nodeData.name !== "HexPaletteTemplateNode" &&
+            nodeData.name !== "FluxColorsBuilderNode"
+        ) return;
 
         const onNodeCreated = nodeType.prototype.onNodeCreated;
         const onResize = nodeType.prototype.onResize;
 
         nodeType.prototype.onNodeCreated = function () {
-            this.setSize([520, 700]);
             const result = onNodeCreated ? onNodeCreated.apply(this, arguments) : undefined;
 
             setTimeout(() => {
-                replaceColorWidget(this, "color_1");
-                replaceColorWidget(this, "color_2");
-                replaceColorWidget(this, "color_3");
-                replaceColorWidget(this, "color_4");
-                replaceColorWidget(this, "color_5");
-                replaceTemplateWidget(this);
+                if (nodeData.name === "HexPaletteTemplateNode") {
+                    enhanceLegacyNode(this);
+                }
 
-                updateTemplateLayout(this);
-                refreshNode(this);
+                if (nodeData.name === "FluxColorsBuilderNode") {
+                    enhanceColorsBuilderNode(this);
+                }
             }, 50);
 
             return result;
@@ -296,7 +327,11 @@ app.registerExtension({
 
         nodeType.prototype.onResize = function () {
             const result = onResize ? onResize.apply(this, arguments) : undefined;
-            updateTemplateLayout(this);
+
+            if (nodeData.name === "HexPaletteTemplateNode" && this.__dukhEnhancedLegacy) {
+                updateTemplateLayout(this);
+            }
+
             return result;
         };
     },
