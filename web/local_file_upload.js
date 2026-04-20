@@ -29,7 +29,21 @@ function buildServerPreviewUrl(filePath) {
     return `/dukhpack/file?path=${encodeURIComponent(filePath)}`;
 }
 
-function buildPreviewElement(fileUrl, originalName) {
+async function fetchVideoFPS(filePath) {
+    console.log("fetchVideoFPS", filePath);
+    try {
+        const res = await fetch(`/dukhpack/video_info?path=${encodeURIComponent(filePath)}`);
+        const data = await res.json();
+
+        if (!res.ok || !data.success) return null;
+        return data.fps;
+    } catch (e) {
+        console.warn("FPS fetch failed", e);
+        return null;
+    }
+}
+
+function buildPreviewElement(fileUrl, originalName, filePath) {
     const previewWrap = document.createElement("div");
     previewWrap.style.width = "100%";
     previewWrap.style.marginTop = "8px";
@@ -54,17 +68,27 @@ function buildPreviewElement(fileUrl, originalName) {
         video.src = fileUrl;
         video.style.width = "100%";
         video.style.maxHeight = "220px";
+    
+        const info = document.createElement("div");
+        info.style.fontSize = "12px";
+        info.style.opacity = "0.8";
+        info.textContent = "Loading video info...";
+    
+        video.addEventListener("loadeddata", async () => {
+            video.play().catch(() => {});
 
-        video.addEventListener("loadeddata", () => {
-            video.play().catch((err) => {
-                console.warn("Video autoplay failed:", err);
-            });
+            const fps = await fetchVideoFPS(filePath);
+            const duration = video.duration?.toFixed(2);
+    
+            info.textContent = `FPS: ${fps ?? "?"} | Duration: ${duration ?? "?"}s`;
         });
-
+    
         previewWrap.appendChild(video);
+        previewWrap.appendChild(info);
+    
         return previewWrap;
     }
-
+    
     const note = document.createElement("div");
     note.style.fontSize = "12px";
     note.style.opacity = "0.8";
@@ -165,7 +189,7 @@ function enhanceLocalFileUploadNode(node) {
         clearPreview();
         if (!filePath) return;
         const fileUrl = buildServerPreviewUrl(filePath);
-        previewHost.appendChild(buildPreviewElement(fileUrl, originalName));
+        previewHost.appendChild(buildPreviewElement(fileUrl, originalName, filePath));    
     }
 
     function fillSelect(files, currentPath = "") {
@@ -312,3 +336,4 @@ app.registerExtension({
         };
     },
 });
+

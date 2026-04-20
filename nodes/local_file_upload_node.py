@@ -146,3 +146,51 @@ class LocalFileUploadNode:
 
     def get_file_path(self, file_path):
         return (file_path,)
+
+
+import subprocess
+
+
+@PromptServer.instance.routes.get("/dukhpack/video_info")
+async def dukhpack_video_info(request):
+    path = request.query.get("path", "")
+    if not path:
+        return web.json_response({"error": "Missing path"}, status=400)
+
+    try:
+        file_path = Path(path).resolve()
+    except Exception:
+        return web.json_response({"error": "Invalid path"}, status=400)
+
+    if not file_path.exists():
+        return web.json_response({"error": "File not found"}, status=404)
+
+    try:
+        # ffprobe должен быть установлен
+        cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=r_frame_rate",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(file_path)
+        ]
+
+        result = subprocess.check_output(cmd).decode().strip()
+
+        if "/" in result:
+            num, den = result.split("/")
+            fps = float(num) / float(den)
+        else:
+            fps = float(result)
+
+        return web.json_response({
+            "success": True,
+            "fps": round(fps, 2),
+        })
+
+    except Exception as e:
+        return web.json_response({
+            "success": False,
+            "error": str(e)
+        })
