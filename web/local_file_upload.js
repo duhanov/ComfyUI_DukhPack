@@ -19,6 +19,16 @@ function isVideoFile(name) {
     return /\.(mp4|webm|mov|mkv|avi|m4v)$/i.test(name || "");
 }
 
+function getFileNameFromPath(filePath) {
+    if (!filePath) return "";
+    return filePath.split("/").pop().split("\\").pop();
+}
+
+function buildServerPreviewUrl(filePath) {
+    if (!filePath) return "";
+    return `/dukhpack/file?path=${encodeURIComponent(filePath)}`;
+}
+
 function buildPreviewElement(fileUrl, originalName) {
     const previewWrap = document.createElement("div");
     previewWrap.style.width = "100%";
@@ -35,10 +45,14 @@ function buildPreviewElement(fileUrl, originalName) {
 
     if (isVideoFile(originalName)) {
         const video = document.createElement("video");
-        video.controls = true;
+        video.controls = false;
         video.src = fileUrl;
         video.style.width = "100%";
         video.style.maxHeight = "220px";
+        video.muted = true;
+        video.loop = true;
+        video.playsInline = true;
+        video.play();
         previewWrap.appendChild(video);
         return previewWrap;
     }
@@ -176,6 +190,13 @@ function enhanceLocalFileUploadNode(node) {
     }
 
     node.widgets.splice(originalIndex, 0, domWidget);
+
+    if (pathWidget.value) {
+        const previewUrl = buildServerPreviewUrl(pathWidget.value);
+        const originalName = getFileNameFromPath(pathWidget.value);
+        setPreview(previewUrl, originalName);
+        status.textContent = "Loaded from saved path";
+    }
 
     node.setSize([Math.max(node.size?.[0] || 420, 420), Math.max(node.size?.[1] || 180, 180)]);
     app.graph.setDirtyCanvas(true, true);
