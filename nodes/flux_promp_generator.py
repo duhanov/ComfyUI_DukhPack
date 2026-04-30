@@ -57,7 +57,6 @@ class FluxPromptGenerator:
                 }),
             },
             "optional": {
-                "colors_json": ("STRING", {"forceInput": True}),
                 "str1": ("STRING", {"forceInput": True}),
                 "str2": ("STRING", {"forceInput": True}),
                 "str3": ("STRING", {"forceInput": True}),
@@ -68,6 +67,11 @@ class FluxPromptGenerator:
                 "str8": ("STRING", {"forceInput": True}),
                 "str9": ("STRING", {"forceInput": True}),
                 "str10": ("STRING", {"forceInput": True}),
+                "str11": ("STRING", {"forceInput": True}),
+                "str12": ("STRING", {"forceInput": True}),
+                "str13": ("STRING", {"forceInput": True}),
+                "str14": ("STRING", {"forceInput": True}),
+                "str15": ("STRING", {"forceInput": True}),
             }
         }
 
@@ -89,6 +93,11 @@ class FluxPromptGenerator:
         str8=None,
         str9=None,
         str10=None,
+        str11=None,
+        str12=None,
+        str13=None,
+        str14=None,
+        str15=None,
     ):
 
         result_text = template
@@ -102,5 +111,10 @@ class FluxPromptGenerator:
         result_text = result_text.replace("{str8}", "" if str8 is None else str(str8))
         result_text = result_text.replace("{str9}", "" if str9 is None else str(str9))
         result_text = result_text.replace("{str10}", "" if str10 is None else str(str10))
+        result_text = result_text.replace("{str11}", "" if str11 is None else str(str11))
+        result_text = result_text.replace("{str12}", "" if str12 is None else str(str12))
+        result_text = result_text.replace("{str13}", "" if str13 is None else str(str13))
+        result_text = result_text.replace("{str14}", "" if str14 is None else str(str14))
+        result_text = result_text.replace("{str15}", "" if str15 is None else str(str15))
     
         return (result_text,)
